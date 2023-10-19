@@ -85,10 +85,10 @@ for i in $(seq 1 $NUMBER_OF_NODES); do
   debug_message "Master's public key added to $node_name."
 done
 
-# Check the operation of the nodes with the added check_host function.
-for i in $(seq 1 $NUMBER_OF_NODES); do
-  check_host "$(docker inspect -f '{{ .NetworkSettings.IPAddress }}' "ansible-node-$i")"
-done
+# Check the operation of the nodes with the added check_host function. Uncomment for using simple ping.
+# for i in $(seq 1 $NUMBER_OF_NODES); do
+# check_host "$(docker inspect -f '{{ .NetworkSettings.IPAddress }}' "ansible-node-$i")"
+# done
 
 # Create an Ansible inventory file (added)
 cat <<EOF > hosts
