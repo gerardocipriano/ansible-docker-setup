@@ -13,32 +13,12 @@ debug_message() {
   echo "[DEBUG] $1"
 }
 
-# Function to check the operation of a host
-check_host() {
-  host_ip=$1
-  debug_message "Checking operation of $host_ip..."
-  if ping -c 1 "$host_ip" &> /dev/null; then
-    debug_message "$host_ip is reachable."
-  else
-    debug_message "$host_ip is not reachable."
-    echo "Configuration not completed due to unreachable host."
-    exit 1
-  fi
-}
-
-# Creation of the authorized_keys file
-cat <<EOF > authorized_keys
-# Insert SSH public keys here
-# Example:
-# ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC3b...
-EOF
-
 # Dockerfile for the master node
 cat <<EOF > Dockerfile_master
 FROM debian
 
-# Install Python3, Nano, OpenSSH Server, Ansible and generate SSH keys
-RUN apt-get update && apt-get install -y python3 nano openssh-server ansible && \
+# Install Python3, Nano, OpenSSH Server, Ansible, sudo and generate SSH keys
+RUN apt-get update && apt-get install -y python3 nano openssh-server ansible sudo && \
     ssh-keygen -q -t rsa -N '' -f /root/.ssh/id_rsa && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
@@ -51,8 +31,8 @@ EOF
 cat <<EOF > Dockerfile_managed
 FROM debian
 
-# Install Python3, Nano, OpenSSH Server
-RUN apt-get update && apt-get install -y python3 nano openssh-server && \
+# Install Python3, Nano, OpenSSH Server, sudo
+RUN apt-get update && apt-get install -y python3 nano openssh-server sudo && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /var/run/sshd
@@ -85,11 +65,6 @@ for i in $(seq 1 $NUMBER_OF_NODES); do
   debug_message "Master's public key added to $node_name."
 done
 
-# Check the operation of the nodes with the added check_host function. Uncomment for using simple ping.
-# for i in $(seq 1 $NUMBER_OF_NODES); do
-# check_host "$(docker inspect -f '{{ .NetworkSettings.IPAddress }}' "ansible-node-$i")"
-# done
-
 # Create an Ansible inventory file (added)
 cat <<EOF > hosts
 [ansible-nodes]
@@ -101,7 +76,6 @@ done
 
 # Copy the inventory file to the master node (added)
 docker cp hosts ansible-master:/etc/ansible/hosts
-
 # Execute the verification ping between the master and managed nodes with the added inventory.
 ansible_master_container_id=$(docker ps -qf "name=ansible-master")
 ansible_ping_playbook="---
@@ -112,10 +86,13 @@ ansible_ping_playbook="---
     ping:
     vars:
       ansible_ssh_common_args: '-o StrictHostKeyChecking=no'"
-
 docker exec -i "$ansible_master_container_id" sh -c "echo '$ansible_ping_playbook' > /ping_test.yml"
 if docker exec -i "$ansible_master_container_id" ansible-playbook /ping_test.yml; then
   echo "Configuration completed."
 else
   echo "Configuration not completed due to Ansible playbook execution failure."
 fi
+
+
+# docker cp playbook-example.yml ansible-master:/root/
+# docker exec -i ansible-master ansible-playbook /root/playbook-example.yml
